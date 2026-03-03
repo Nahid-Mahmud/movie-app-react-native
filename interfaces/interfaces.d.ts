@@ -75,3 +75,26 @@ interface TrendingCardProps {
   movie: TrendingMovie;
   index: number;
 }
+
+interface MyMovie {
+  id: string;
+  title: string;
+  movieId: string;
+  genre: string[];
+  year: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface AddMovieRequest {
+  title: string;
+  movieId: string;
+  genre: string[];
+  year: number;
+}
+
+interface UpdateMovieRequest {
+  title?: string;
+  genre?: string[];
+  year?: number;
+}

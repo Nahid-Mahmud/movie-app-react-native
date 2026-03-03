@@ -2,9 +2,14 @@ import { images } from "@/constants/images";
 import useFetch from "@/hooks/useFetch";
 import { fetchMovieDetails } from "@/services/api";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ArrowLeft } from "lucide-react-native";
-import React from "react";
-import { ActivityIndicator, Image, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { ArrowLeft, Bookmark, BookmarkCheck } from "lucide-react-native";
+import React, { useState, useEffect } from "react";
+import { ActivityIndicator, Image, ScrollView, Text, TouchableOpacity, View, Alert } from "react-native";
+import {
+  useAddMovieToListMutation,
+  useRemoveMovieFromListMutation,
+  useGetMyMoviesQuery,
+} from "@/store/features/myMovies/myMovies.api";
 function Divider() {
   return (
     // flex-row = flexDirection: "row"
@@ -42,12 +47,53 @@ const MovieDetails = () => {
   const { id } = useLocalSearchParams();
   console.log(id);
   const router = useRouter();
+  const [isSaved, setIsSaved] = useState(false);
 
   const {
     data: movie,
     loading: movieLoading,
     error: movieError,
   } = useFetch(() => fetchMovieDetails(id as string), true);
+
+  const { data: savedMovies } = useGetMyMoviesQuery({ limit: 1000 });
+  const [addMovieToList] = useAddMovieToListMutation();
+  const [removeMovieFromList] = useRemoveMovieFromListMutation();
+
+  // Check if movie is already saved
+  useEffect(() => {
+    if (savedMovies?.data && id) {
+      const movieExists = savedMovies.data.find((savedMovie) => savedMovie.movieId === id.toString());
+      setIsSaved(!!movieExists);
+    }
+  }, [savedMovies, id]);
+
+  const handleSaveMovie = async () => {
+    if (!movie || !id) return;
+
+    try {
+      if (isSaved) {
+        // Find the saved movie to get its ID for removal
+        const savedMovie = savedMovies?.data?.find((savedMovie) => savedMovie.movieId === id.toString());
+        if (savedMovie) {
+          await removeMovieFromList(savedMovie.id).unwrap();
+          setIsSaved(false);
+          Alert.alert("Success", "Movie removed from your saved list");
+        }
+      } else {
+        // Save the movie
+        await addMovieToList({
+          title: movie.title,
+          movieId: id.toString(),
+          genre: movie.genres?.map((g: any) => g.name) || [],
+          year: movie.release_date ? new Date(movie.release_date).getFullYear() : new Date().getFullYear(),
+        }).unwrap();
+        setIsSaved(true);
+        Alert.alert("Success", "Movie saved to your list");
+      }
+    } catch (error: any) {
+      Alert.alert("Error", error?.data?.message || "Failed to save movie");
+    }
+  };
 
   console.log(JSON.stringify(movie));
   if (movieLoading) {
@@ -141,6 +187,7 @@ const MovieDetails = () => {
           >
             <ArrowLeft size={20} color="#AB8BFF" />
           </TouchableOpacity>
+
           {release_date && (
             <View className="absolute top-14 right-5 border border-accent/50 bg-primary/70 px-2.5 py-1.5">
               <Text className="text-accent text-[11px] tracking-widest">{formatYear(release_date)}</Text>
@@ -169,7 +216,15 @@ const MovieDetails = () => {
                   ● {status}
                 </Text>
               )}
-              <Text className="text-light-100 text-[22px] font-extrabold leading-7">{title}</Text>
+              <View className="flex-row items-center justify-between">
+                <Text className="text-light-100 text-[22px] font-extrabold leading-7 flex-1 pr-3">{title}</Text>
+                <TouchableOpacity
+                  onPress={handleSaveMovie}
+                  className="w-10 h-10 border border-accent/50 justify-center items-center bg-primary/80 rounded"
+                >
+                  {isSaved ? <BookmarkCheck size={22} color="#AB8BFF" /> : <Bookmark size={22} color="#AB8BFF" />}
+                </TouchableOpacity>
+              </View>
               <Text className="text-white text-[11px] mt-1.5 tracking-widest">
                 {[original_language?.toUpperCase(), runtime ? formatRuntime(runtime) : null]
                   .filter(Boolean)
